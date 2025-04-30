@@ -15,15 +15,12 @@ try:
     DEFAULT_WEBHOOK = config.DINGTALK_CONFIG['WEBHOOK_URL']
     DEFAULT_LOG_PATH = config.LOG_CONFIG['LOG_FILE']
     DEFAULT_MESSAGE_TITLE = config.DINGTALK_CONFIG['MESSAGE_TITLE']
+    API_CHECK_URL = config.API_CONFIG['CHECK_URL']  # 添加API检查URL配置
 except ImportError:
-    print("警告: 未找到config.py，使用默认配置")
-    # 默认忽略的用户名列表
-    
-    # 默认钉钉webhook地址，使用示例地址
-    # 默认日志文件路径
-    DEFAULT_LOG_PATH = 'login_attempts.log'
-    # 默认钉钉消息标题
-    DEFAULT_MESSAGE_TITLE = '登录尝试统计'
+    print("[!] 未找到config.py，使用默认配置")
+    # 退出
+    exit(1)
+
 
 
 def normalize_username(username):
@@ -331,6 +328,27 @@ def generate_brief_output(title, stats):
     print(f"--------------------------------")
 
 
+def check_api_health(url=None):
+    """检查API的是否存在
+    
+    Args:
+        url: API健康检查的URL，如果未提供则使用配置中的默认值
+        
+    Returns:
+        tuple: (bool, str) - (是否健康, 状态信息)
+    """
+    check_url = url if url else API_CHECK_URL
+
+    try:
+        response = requests.get(check_url, timeout=5)
+        if response.status_code == 200:
+            return True, "API运行正常"
+        else:
+            return False, f"API返回异常状态码: {response.status_code}"
+    except requests.exceptions.RequestException as e:
+        return False, f"API连接失败: {str(e)}"
+
+
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='分析登录尝试日志')
@@ -348,7 +366,24 @@ def main():
     parser.add_argument('--csv', action='store_true',
                         default=True, help='生成CSV格式结果')
     parser.add_argument('--today', action='store_true', help='只显示今日的登录尝试记录')
+    parser.add_argument('--check-api', action='store_true', help='检查API健康状态')
+    parser.add_argument('--api-url', help='自定义API健康检查URL')
     args = parser.parse_args()
+
+    # 检查API健康状态
+    if args.check_api:
+        is_healthy, status_message = check_api_health(args.api_url)
+        if is_healthy:
+            print(f"[+] {status_message}")
+        else:
+            print(f"[-] {status_message}")
+            if args.dingtalk:
+                # 如果API不健康，发送告警到钉钉
+                alert_title = "API健康检查告警"
+                alert_content = f"### {alert_title}\n\n{status_message}"
+                webhook_url = args.webhook if args.webhook else DEFAULT_WEBHOOK
+                send_dingtalk_message(webhook_url, alert_title, alert_content)
+            return
 
     # 忽略列表
     ignore_users = set(args.ignore)

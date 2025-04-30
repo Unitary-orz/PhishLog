@@ -101,6 +101,10 @@ def send_sms():
     })
 
 
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"})
+
 if __name__ == '__main__':
     # 启动服务器，显示调试信息
     app.run(host=API_CONFIG['HOST'], port=API_CONFIG['PORT'], debug=True)
