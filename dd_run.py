@@ -74,6 +74,7 @@ scheduler.add_job(
 try:
     logging.info(f"定时器已启动，每天{SCHEDULER_CONFIG['FIRST_RUN_HOUR']}:{SCHEDULER_CONFIG['FIRST_RUN_MINUTE']}和"
                  f"{SCHEDULER_CONFIG['SECOND_RUN_HOUR']}:{SCHEDULER_CONFIG['SECOND_RUN_MINUTE']}执行统计任务")
+    logging.info(f"每{SCHEDULER_CONFIG['CHECK_RUN_INTERVAL']}小时执行一次API健康检查")
     scheduler.start()
 except (KeyboardInterrupt, SystemExit):
     logging.info("定时器已停止")

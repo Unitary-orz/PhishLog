@@ -271,12 +271,12 @@ def send_dingtalk_message(webhook_url, title, content):
         if response.status_code == 200:
             result = response.json()
             if result.get('errcode') == 0:
-                print(f"[+] 【{title}】钉钉消息发送成功")
+                print(f"[+]【{title}】钉钉消息发送成功")
                 return True
             else:
-                print(f"[-] 【{title}】钉钉消息发送失败 {result.get('errmsg')}")
+                print(f"[-]【{title}】钉钉消息发送失败 {result.get('errmsg')}")
         else:
-            print(f"[-] 【{title}】钉钉消息发送失败，状态码: {response.status_code}")
+            print(f"[-]【{title}】钉钉消息发送失败，状态码: {response.status_code}")
 
         return False
     except Exception as e:
@@ -376,7 +376,7 @@ def main():
         if is_healthy:
             print(f"[+] {status_message}")
         else:
-            print(f"[-] {status_message}")
+            print(f"[!] {status_message}")
             if args.dingtalk:
                 # 如果API不健康，发送告警到钉钉
                 alert_title = "API 状态检测"
