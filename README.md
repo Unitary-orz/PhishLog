@@ -1,6 +1,6 @@
 # PhishLog
 
-PhishLog是一个用于记录和分析钓鱼网站登录尝试的工具，帮助安全研究人员收集和统计潜在攻击者的行为数据。
+PhishLog是一个用于记录和分析钓鱼网站登录尝试的工具，帮助安全研究人员收集和统计受害者的行为数据。
 
 ## 功能特点
 
@@ -13,13 +13,13 @@ PhishLog是一个用于记录和分析钓鱼网站登录尝试的工具，帮助
 
 ## 系统组件
 
-- `back_api.py` - Flask后端服务，提供模拟登录API
-- `stats.py` - 统计分析脚本，处理日志数据并生成报告
-- `dd_run.py` - 定时任务调度器，定期执行统计分析
-- `login_attempts.log` - 记录所有登录尝试的日志文件
-- `stats.csv` - 统计结果输出文件
-- `config.template.py` - 配置文件模板
-- `config.py` - 本地配置文件(需自行创建，不提交到版本控制)
+- `back_api.py` - Flask后端服务，提供模拟登录API及数据记录功能
+- `stats.py` - 统计分析脚本，处理日志数据并生成报告，支持多种输出格式
+- `dd_run.py` - 定时任务调度器，定期执行统计分析并推送结果
+- `login_attempts.log` - 记录所有登录尝试的日志文件，包含时间戳、IP、账号和密码信息
+- `stats.csv` - 统计结果输出文件，包含账号、尝试次数、时间范围等信息
+- `config.template.py` - 配置文件模板，包含所有可配置项的示例
+- `config.py` - 本地配置文件(需自行创建)
 
 ## 安装说明
 
@@ -48,8 +48,6 @@ PhishLog是一个用于记录和分析钓鱼网站登录尝试的工具，帮助
 - 钉钉机器人配置（webhook地址）
 - 定时任务配置
 
-**注意**：`config.py` 文件包含敏感信息，已被添加到 `.gitignore` 中，不会被提交到版本控制系统。每次部署时需要手动创建。
-
 ### 钉钉机器人配置
 
 要使用钉钉机器人功能，请按照以下步骤操作：
@@ -60,7 +58,7 @@ PhishLog是一个用于记录和分析钓鱼网站登录尝试的工具，帮助
    - 设置机器人名称和头像
    - 安全设置中选择"加签"（推荐）或"自定义关键词"
    - 若选择关键词，请添加"PhishLog"作为关键词
-   - 复制生成的Webhook地址和选择“加签”
+   - 复制生成的Webhook地址和选择"加签"
 
 2. 配置项目文件：
    - 打开`config.py`文件
@@ -85,17 +83,36 @@ python back_api.py
 
 服务默认在8090端口运行，可以通过浏览器访问 `http://your-server-ip:8090/` 。
 
+### API接口说明
+
+基础URL: `http://your-server-ip:8090/`
+
+| 接口路径 | 方法 | 功能描述 | 参数 |
+|---------|------|---------|------|
+| `/login` | POST | 模拟登录验证 | username, password |
+| `/health` | GET | 健康检查 | 无 |
+
 ### 手动执行统计分析
 
 ```
 # 基本分析
 python stats.py
 
-# 发送报告到钉钉
+# 详细信息
+python stats.py --detail
+python stats.py -d
+
+# 生成CSV报告
+python stats.py --csv
+python stats.py -c
+
+# 发送统计到钉钉
 python stats.py --dingtalk
+python stats.py -dd
 
 # 仅分析今天的数据
 python stats.py --today
+python stats.py -t
 ```
 
 ### 启动定时任务
@@ -110,24 +127,55 @@ python dd_run.py
 
 ### stats.py 参数
 
-- `--dingtalk`: 将统计结果发送到钉钉
-- `--today`: 仅统计今天的登录尝试
-- `--verbose`: 生成详细统计信息
-- `--ignore-user USER`: 排除特定用户名
-- `--webhook URL`: 指定自定义钉钉webhook地址
-- `--log-file PATH`: 指定自定义日志文件路径
+```
+usage: stats.py [-h] [-d] [-c] [-dd] [-t] [--webhook WEBHOOK] [--title TITLE] [-v] [--no-normalize] [--check-api]
+                [--api-url API_URL] [--log LOG] [--ignore IGNORE [IGNORE ...]]
 
-## 输出示例
+分析登录尝试日志
 
-统计结果将以CSV格式输出到 `stats.csv` 文件，包含以下字段：
+optional arguments:
+  -h, --help            show this help message and exit
 
-- 用户名（标准化后）
-- 原始用户名（可能多个）
-- 尝试次数
-- 首次尝试时间
-- 最近尝试时间
-- IP地址列表
-- 使用的密码列表
+主要功能:
+  -d, --detail          在终端打印显示详细信息
+  -c, --csv             生成CSV格式结果
+  -dd, --dingtalk       开启钉钉消息推送功能
+  -t, --today           只显示今日的登录尝试记录
+
+钉钉推送配置:
+  --webhook WEBHOOK     自定义钉钉机器人Webhook地址，不提供则使用默认地址
+  --title TITLE         发送到钉钉的消息标题
+  -v, --verbose         钉钉输出中显示详细信息
+
+高级选项:
+  --no-normalize        禁用用户名标准化
+  --check-api           检查API健康状态
+  --api-url API_URL     自定义API健康检查URL
+  --log LOG             日志文件路径
+  --ignore IGNORE [IGNORE ...]
+                        要忽略的用户名列表，多个用户以空格分隔
+```
+
+## 常见问题
+
+### 1. 如何更改API服务的端口?
+
+在 `config.py` 文件中修改 `API_PORT` 参数：
+
+```python
+# API服务配置
+API_HOST = '0.0.0.0'  # 监听所有网卡
+API_PORT = 8080  # 修改为你需要的端口
+```
+
+### 2. 为什么钉钉机器人消息发送失败?
+
+常见原因:
+- Webhook地址配置错误
+- 加签密钥未正确设置
+- 消息内容不包含自定义关键词（如果使用关键词验证方式）
+- 机器人每分钟发送消息数量超出限制（钉钉限制20条/分钟）
+
 
 ## 安全注意事项
 
