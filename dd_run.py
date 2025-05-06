@@ -14,7 +14,8 @@ except ImportError:
         'FIRST_RUN_HOUR': 12,
         'FIRST_RUN_MINUTE': 0,
         'SECOND_RUN_HOUR': 17,
-        'SECOND_RUN_MINUTE': 0
+        'SECOND_RUN_MINUTE': 0,
+        'CHECK_RUN_INTERVAL': 1
     }
 
 # 配置日志
@@ -33,6 +34,12 @@ def run_stats(today=False):
         logging.info(f"执行命令: {sys.executable} stats.py --dingtalk")
 
     logging.info("统计任务执行完成")
+
+
+def run_api_check():
+    logging.info("开始执行API健康检查")
+    subprocess.run([sys.executable, "stats.py", "--api-check", "--dingtalk"])
+    logging.info("API健康检查执行完成")
 
 # 立即运行1次
 # logging.info("立即运行1次")
@@ -55,6 +62,13 @@ scheduler.add_job(
     hour=SCHEDULER_CONFIG['SECOND_RUN_HOUR'],
     minute=SCHEDULER_CONFIG['SECOND_RUN_MINUTE'],
     args=[True]
+)
+
+# 添加每小时运行一次的任务
+scheduler.add_job(
+    run_api_check,
+    'interval',
+    hours=SCHEDULER_CONFIG['CHECK_RUN_INTERVAL']
 )
 
 try:

@@ -271,12 +271,12 @@ def send_dingtalk_message(webhook_url, title, content):
         if response.status_code == 200:
             result = response.json()
             if result.get('errcode') == 0:
-                print(f"[+] 钉钉消息发送成功")
+                print(f"[+] 【{title}】钉钉消息发送成功")
                 return True
             else:
-                print(f"[-] 钉钉消息发送失败: {result.get('errmsg')}")
+                print(f"[-] 【{title}】钉钉消息发送失败 {result.get('errmsg')}")
         else:
-            print(f"[-] 钉钉消息发送失败，状态码: {response.status_code}")
+            print(f"[-] 【{title}】钉钉消息发送失败，状态码: {response.status_code}")
 
         return False
     except Exception as e:
@@ -342,11 +342,11 @@ def check_api_health(url=None):
     try:
         response = requests.get(check_url, timeout=5)
         if response.status_code == 200:
-            return True, "API运行正常"
+            return True, "API 运行正常"
         else:
-            return False, f"API返回异常状态码: {response.status_code}"
+            return False, f"API 返回异常状态码: {response.status_code}"
     except requests.exceptions.RequestException as e:
-        return False, f"API连接失败: {str(e)}"
+        return False, f"API 连接失败: {str(e)}"
 
 
 def main():
@@ -379,7 +379,7 @@ def main():
             print(f"[-] {status_message}")
             if args.dingtalk:
                 # 如果API不健康，发送告警到钉钉
-                alert_title = "API健康检查告警"
+                alert_title = "API 状态检测"
                 alert_content = f"### {alert_title}\n\n{status_message}"
                 webhook_url = args.webhook if args.webhook else DEFAULT_WEBHOOK
                 send_dingtalk_message(webhook_url, alert_title, alert_content)
