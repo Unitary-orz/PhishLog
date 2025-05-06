@@ -1,8 +1,19 @@
+"""
+stats.py 是用于分析登录尝试日志的工具。
+
+- analyze_login_attempts: 核心分析功能，处理登录日志
+- normalize_username: 标准化用户名以识别相似账户
+- filter_today_records: 筛选今日登录记录
+- generate_xxx_output: 各种格式的结果生成
+- send_dingtalk_message: 发送钉钉通知
+- check_api_health: 检查API健康状态
+
+"""
+
 import argparse
 import csv
 import datetime
 import json
-import os
 import re
 from collections import defaultdict
 
@@ -18,10 +29,9 @@ try:
     DEFAULT_MESSAGE_TITLE = config.DINGTALK_CONFIG['MESSAGE_TITLE']
     API_CHECK_URL = config.API_CONFIG['CHECK_URL']  # 添加API检查URL配置
 except ImportError:
-    print("[!] 未找到config.py，使用默认配置")
+    print("[-] 未配置config.py")
     # 退出
     exit(1)
-
 
 
 def normalize_username(username):
@@ -94,11 +104,6 @@ def analyze_login_attempts(log_file_path, ignore_users=None, normalize=True):
         "count": 0
     })
 
-    # 检查文件存在
-    if not os.path.exists(log_file_path):
-        print(f"[-] 日志文件不存在: {log_file_path}")
-        return []
-
     # 读取日志文件
     with open(log_file_path, 'r') as file:
         for line in file:
@@ -157,6 +162,50 @@ def analyze_login_attempts(log_file_path, ignore_users=None, normalize=True):
         })
 
     return result
+
+
+def filter_today_records(stats):
+    """筛选出今日的登录尝试记录
+    
+    Args:
+        stats: 登录尝试统计记录列表
+        
+    Returns:
+        只包含今日记录的统计列表
+    """
+    today = datetime.datetime.now().date()
+    today_stats = []
+
+    for user in stats:
+        # 检查最后尝试时间是否为今天
+        if user['last_attempt']:
+            last_attempt_date = datetime.datetime.strptime(
+                user['last_attempt'], '%Y-%m-%d %H:%M:%S').date()
+            if last_attempt_date == today:
+                today_stats.append(user)
+
+    return today_stats
+
+
+def check_api_health(url=None):
+    """检查API的是否存在
+    
+    Args:
+        url: API健康检查的URL，如果未提供则使用配置中的默认值
+        
+    Returns:
+        tuple: (bool, str) - (是否健康, 状态信息)
+    """
+    check_url = url if url else API_CHECK_URL
+
+    try:
+        response = requests.get(check_url, timeout=5)
+        if response.status_code == 200:
+            return True, "API 运行正常"
+        else:
+            return False, f"API 返回异常状态码: {response.status_code}"
+    except requests.exceptions.RequestException as e:
+        return False, f"API 连接失败: {str(e)}"
 
 
 def generate_csv_output(stats):
@@ -240,79 +289,6 @@ def generate_markdown_output(title, stats, verbose=False):
     return markdown
 
 
-def send_dingtalk_message(webhook_url, title, content):
-    """发送钉钉消息
-    
-    Args:
-        webhook_url: 钉钉机器人Webhook地址
-        title: 消息标题
-        content: Markdown格式的消息内容
-    
-    Returns:
-        bool: 发送是否成功
-    """
-    if not webhook_url:
-        print("未提供钉钉Webhook地址，跳过发送")
-        return False
-
-    try:
-        headers = {
-            'Content-Type': 'application/json'
-        }
-
-        message = {
-            'msgtype': 'markdown',
-            'markdown': {
-                'title': title,
-                'text': content
-            }
-        }
-
-        response = requests.post(
-            webhook_url,
-            headers=headers,
-            data=json.dumps(message)
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('errcode') == 0:
-                print(f"[+]【{title}】钉钉消息发送成功")
-                return True
-            else:
-                print(f"[-]【{title}】钉钉消息发送失败 {result.get('errmsg')}")
-        else:
-            print(f"[-]【{title}】钉钉消息发送失败，状态码: {response.status_code}")
-
-        return False
-    except Exception as e:
-        print(f"发送钉钉消息时出错: {e}")
-        return False
-
-
-def filter_today_records(stats):
-    """筛选出今日的登录尝试记录
-    
-    Args:
-        stats: 登录尝试统计记录列表
-        
-    Returns:
-        只包含今日记录的统计列表
-    """
-    today = datetime.datetime.now().date()
-    today_stats = []
-
-    for user in stats:
-        # 检查最后尝试时间是否为今天
-        if user['last_attempt']:
-            last_attempt_date = datetime.datetime.strptime(
-                user['last_attempt'], '%Y-%m-%d %H:%M:%S').date()
-            if last_attempt_date == today:
-                today_stats.append(user)
-
-    return today_stats
-
-
 def generate_brief_output(title, stats):
     print(f"--------------------------------")
     print(f"{title}")
@@ -371,28 +347,57 @@ def generate_detail_output(title, stats):
     print(f"================================")
 
 
-def check_api_health(url=None):
-    """检查API的是否存在
+def send_dingtalk_message(webhook_url, title, content):
+    """发送钉钉消息
     
     Args:
-        url: API健康检查的URL，如果未提供则使用配置中的默认值
-        
+        webhook_url: 钉钉机器人Webhook地址
+        title: 消息标题
+        content: Markdown格式的消息内容
+    
     Returns:
-        tuple: (bool, str) - (是否健康, 状态信息)
+        bool: 发送是否成功
     """
-    check_url = url if url else API_CHECK_URL
+    if not webhook_url:
+        print("未提供钉钉Webhook地址，跳过发送")
+        return False
 
     try:
-        response = requests.get(check_url, timeout=5)
+        headers = {
+            'Content-Type': 'application/json'
+        }
+
+        message = {
+            'msgtype': 'markdown',
+            'markdown': {
+                'title': title,
+                'text': content
+            }
+        }
+
+        response = requests.post(
+            webhook_url,
+            headers=headers,
+            data=json.dumps(message)
+        )
+
         if response.status_code == 200:
-            return True, "API 运行正常"
+            result = response.json()
+            if result.get('errcode') == 0:
+                print(f"[+]【{title}】钉钉消息发送成功")
+                return True
+            else:
+                print(f"[-]【{title}】钉钉消息发送失败 {result.get('errmsg')}")
         else:
-            return False, f"API 返回异常状态码: {response.status_code}"
-    except requests.exceptions.RequestException as e:
-        return False, f"API 连接失败: {str(e)}"
+            print(f"[-]【{title}】钉钉消息发送失败，状态码: {response.status_code}")
+
+        return False
+    except Exception as e:
+        print(f"发送钉钉消息时出错: {e}")
+        return False
 
 
-def main():
+def parse_args():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='分析登录尝试日志')
 
@@ -400,7 +405,7 @@ def main():
     main_group = parser.add_argument_group('主要功能')
 
     main_group.add_argument('-d', '--detail', action='store_true',
-                            default=True, help='在终端打印显示详细信息')
+                            default=False, help='在终端打印显示详细信息')
     main_group.add_argument('-c', '--csv', action='store_true',
                             default=False, help='生成CSV格式结果')
     main_group.add_argument('-dd', '--dingtalk',
@@ -430,6 +435,13 @@ def main():
                         default=IGNORE_USERS, help='要忽略的用户名列表，多个用户以空格分隔')
 
     args = parser.parse_args()
+    return args
+
+
+def main():
+
+    # 解析命令行参数
+    args = parse_args()
 
     # 检查API健康状态并跳过统计
     if args.check_api:
