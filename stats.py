@@ -2,6 +2,7 @@ import argparse
 import csv
 import datetime
 import json
+import os
 import re
 from collections import defaultdict
 
@@ -92,6 +93,11 @@ def analyze_login_attempts(log_file_path, ignore_users=None, normalize=True):
         "last_attempt": None,
         "count": 0
     })
+
+    # 检查文件存在
+    if not os.path.exists(log_file_path):
+        print(f"[-] 日志文件不存在: {log_file_path}")
+        return []
 
     # 读取日志文件
     with open(log_file_path, 'r') as file:
@@ -308,7 +314,6 @@ def filter_today_records(stats):
 
 
 def generate_brief_output(title, stats):
-    print(f"[+] 生成统计简述")
     print(f"--------------------------------")
     print(f"{title}")
     print(f"总计发现 {len(stats)} 个账号的登录尝试")
@@ -326,6 +331,44 @@ def generate_brief_output(title, stats):
             print(
                 f"用户名: {display_name}, 尝试次数: {user['count']}, IP数量: {len(user['ips'])}")
     print(f"--------------------------------")
+
+
+def generate_detail_output(title, stats):
+    """生成终端显示的详细信息输出
+    
+    Args:
+        title: 输出标题
+        stats: 登录尝试统计记录列表
+    """
+    print(f"================================")
+    print(f"{title}")
+    print(f"================================")
+    print(f"总计发现 {len(stats)} 个账号的登录尝试\n")
+
+    for user in stats:
+        display_name = user.get('normalized_username', '')
+
+        print(f"■ 用户: {display_name}")
+        print(f"  ├─ 尝试次数: {user['count']}")
+        print(f"  ├─ 首次尝试: {user['first_attempt']}")
+        print(f"  ├─ 最近尝试: {user['last_attempt']}")
+
+        if 'usernames' in user and len(user['usernames']) > 1:
+            print(f"  ├─ 原始用户名: {', '.join(user['usernames'])}")
+
+        print(f"  ├─ 使用的密码: {', '.join(user['passwords'])}")
+        print(f"  ├─ IP地址: {', '.join(user['ips'])}")
+
+        # 显示最多3个用户代理
+        agents = list(user['user_agents'])[:3]
+        if len(user['user_agents']) > 3:
+            print(f"  └─ 用户代理: {', '.join(agents)}...")
+        else:
+            print(f"  └─ 用户代理: {', '.join(agents)}")
+
+        print()
+
+    print(f"================================")
 
 
 def check_api_health(url=None):
@@ -352,29 +395,48 @@ def check_api_health(url=None):
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='分析登录尝试日志')
-    parser.add_argument('--log', default=DEFAULT_LOG_PATH, help='日志文件路径')
-    parser.add_argument('--ignore', nargs='+',
-                        default=IGNORE_USERS, help='要忽略的用户名列表，多个用户以空格分隔')
-    parser.add_argument('--dingtalk', action='store_true', help='开启钉钉消息推送功能')
-    parser.add_argument('--webhook', help='自定义钉钉机器人Webhook地址，不提供则使用默认地址')
-    parser.add_argument(
+
+    # 基本选项组
+    main_group = parser.add_argument_group('主要功能')
+
+    main_group.add_argument('-d', '--detail', action='store_true',
+                            default=True, help='在终端打印显示详细信息')
+    main_group.add_argument('-c', '--csv', action='store_true',
+                            default=False, help='生成CSV格式结果')
+    main_group.add_argument('-dd', '--dingtalk',
+                            action='store_true', help='开启钉钉消息推送功能')
+    main_group.add_argument('-t', '--today',
+                            action='store_true', help='只显示今日的登录尝试记录')
+    # 钉钉选项组
+    dingtalk_group = parser.add_argument_group('钉钉推送配置')
+
+    dingtalk_group.add_argument(
+        '--webhook', help='自定义钉钉机器人Webhook地址，不提供则使用默认地址')
+    dingtalk_group.add_argument(
         '--title', default=DEFAULT_MESSAGE_TITLE, help='发送到钉钉的消息标题')
-    parser.add_argument('--no-normalize', action='store_true', help='禁用用户名标准化')
-    parser.add_argument('--verbose', action='store_true', help='钉钉输出中显示详细信息')
-    parser.add_argument('--print', action='store_true',
-                        default=True, help='在输出中显示详细信息')
-    parser.add_argument('--csv', action='store_true',
-                        default=True, help='生成CSV格式结果')
-    parser.add_argument('--today', action='store_true', help='只显示今日的登录尝试记录')
-    parser.add_argument('--check-api', action='store_true', help='检查API健康状态')
-    parser.add_argument('--api-url', help='自定义API健康检查URL')
+    dingtalk_group.add_argument('-v', '--verbose',
+                                action='store_true', help='钉钉输出中显示详细信息')
+
+    # 高级选项组
+    advanced_group = parser.add_argument_group('高级选项')
+    advanced_group.add_argument('--no-normalize',
+                                action='store_true', help='禁用用户名标准化')
+    advanced_group.add_argument('--check-api',
+                                action='store_true', help='检查API健康状态')
+    advanced_group.add_argument('--api-url', help='自定义API健康检查URL')
+    advanced_group.add_argument(
+        '--log', default=DEFAULT_LOG_PATH, help='日志文件路径')
+    advanced_group.add_argument('--ignore', nargs='+',
+                        default=IGNORE_USERS, help='要忽略的用户名列表，多个用户以空格分隔')
+
     args = parser.parse_args()
 
-    # 检查API健康状态
+    # 检查API健康状态并跳过统计
     if args.check_api:
         is_healthy, status_message = check_api_health(args.api_url)
         if is_healthy:
             print(f"[+] {status_message}")
+            return
         else:
             print(f"[!] {status_message}")
             if args.dingtalk:
@@ -429,8 +491,12 @@ def main():
         # 发送到钉钉
         send_dingtalk_message(webhook_url, title, markdown_output)
 
-    # 打印简要统计信息
-    if args.print:
+    # 打印详细统计信息
+    if args.detail:
+        print(f"[+] 打印详细统计信息")
+        generate_detail_output(title, display_stats)
+    else:
+        print(f"[+] 打印简要统计信息")
         generate_brief_output(title, display_stats)
 
 
