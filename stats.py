@@ -483,7 +483,7 @@ def main():
         title = f"{args.title}({today_date}当天)"
         display_stats = filter_today_records(stats)
         if not display_stats:
-            print(f"\n[-] 今日的登录尝试记录为空")
+            print(f"\n[!] 今日的登录尝试记录为空")
             args.dingtalk = False
     else:
         title = f"{args.title}(截止{today_date})"
