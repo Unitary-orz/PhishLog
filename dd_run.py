@@ -38,7 +38,7 @@ def run_stats(today=False):
 
 def run_api_check():
     logging.info("开始执行API健康检查")
-    subprocess.run([sys.executable, "stats.py", "--api-check", "--dingtalk"])
+    subprocess.run([sys.executable, "stats.py", "--check-api", "--dingtalk"])
     logging.info("API健康检查执行完成")
 
 # 立即运行1次
