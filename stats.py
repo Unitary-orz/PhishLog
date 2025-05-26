@@ -14,6 +14,7 @@ import argparse
 import csv
 import datetime
 import json
+import os
 import re
 from collections import defaultdict
 
@@ -104,7 +105,12 @@ def analyze_login_attempts(log_file_path, ignore_users=None, normalize=True):
         "count": 0
     })
 
+    if not os.path.exists(log_file_path):
+        print(f"[-] 日志文件不存在: {log_file_path}")
+        return []
+
     # 读取日志文件
+
     with open(log_file_path, 'r') as file:
         for line in file:
             if '登录尝试' not in line:
